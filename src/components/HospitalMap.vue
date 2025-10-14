@@ -30,8 +30,9 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { loadKakao } from '../composables/useKakaoLoader.js'
-
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
+import { db } from '../firebase/config.js' // 'database' 대신 Firestore 'db' 인스턴스 import
+import { loadKakao, geocodeAddress } from '../composables/useKakaoLoader.js'
 const props = defineProps({
 	hospitals: {
 		type: Array,
@@ -96,31 +97,76 @@ function deleteHospital(hospital) {
 }
 
 onMounted(async () => {
-	try {
-		const { kakao } = await loadKakao()
-		kakaoRef = kakao
-		
-		if (mapEl.value) {
-			map = new kakao.maps.Map(mapEl.value, {
-				center: new kakao.maps.LatLng(37.5665, 126.9780),
-				level: 7,
-			})
+	 // 1. Kakao SDK 로드
+	const { kakao } = await loadKakao()
+
+	// 2. 지도 생성
+	map = new kakao.maps.Map(mapEl.value, {
+		center: new kakao.maps.LatLng(37.5665, 126.9780), // 초기 위치: 서울
+		level: 7
+	})
+
+	// 3. Firebase 주소 불러오기
+	const querySnapshot = await getDocs(collection(db, 'hospitalData'))
+	const bounds = new kakao.maps.LatLngBounds()
+
+	for (const doc of querySnapshot.docs) {
+		const { ADDR, HOSPITAL_NM } = doc.data()
+		alert("address: " + ADDR  + ", label: " + HOSPITAL_NM );
+		const coords = await geocodeAddress(ADDR)
+		if (!coords) {
+		console.warn(`주소 변환 실패: ${address}`)
+		continue
 		}
-		renderMarkers()
-	} catch (error) {
-		console.error('카카오 지도 로드 실패:', error)
-		// 에러가 발생하면 간단한 메시지 표시
-		if (mapEl.value) {
-			mapEl.value.innerHTML = `
-				<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; border-radius: 8px; color: #666;">
-					<div style="text-align: center;">
-						<p>카카오 지도를 불러올 수 없습니다.</p>
-						<p style="font-size: 12px;">JavaScript 키를 확인해주세요.</p>
-					</div>
-				</div>
-			`
-		}
+
+		const position = new kakao.maps.LatLng(coords.lat, coords.lng)
+
+		// 4. 마커 생성
+		const marker = new kakao.maps.Marker({
+		map,
+		position
+		})
+
+		// 5. 인포윈도우
+		const infowindow = new kakao.maps.InfoWindow({
+		content: `<div style="width:150px;text-align:center;padding:6px 0;">${HOSPITAL_NM }</div>`
+		})
+		infowindow.open(map, marker)
+
+		// 6. 지도 범위 확장
+		bounds.extend(position)
 	}
+
+	// 7. 마커가 하나 이상일 때 지도를 범위에 맞게 조정
+	if (!bounds.isEmpty()) {
+		map.setBounds(bounds)
+	}
+
+	// try {
+	// 	const { kakao } = await loadKakao()
+	// 	kakaoRef = kakao
+		
+	// 	if (mapEl.value) {
+	// 		map = new kakao.maps.Map(mapEl.value, {
+	// 			center: new kakao.maps.LatLng(37.5665, 126.9780),
+	// 			level: 7,
+	// 		})
+	// 	}
+	// 	renderMarkers()
+	// } catch (error) {
+	// 	console.error('카카오 지도 로드 실패:', error)
+	// 	// 에러가 발생하면 간단한 메시지 표시
+	// 	if (mapEl.value) {
+	// 		mapEl.value.innerHTML = `
+	// 			<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; border-radius: 8px; color: #666;">
+	// 				<div style="text-align: center;">
+	// 					<p>카카오 지도를 불러올 수 없습니다.</p>
+	// 					<p style="font-size: 12px;">JavaScript 키를 확인해주세요.</p>
+	// 				</div>
+	// 			</div>
+	// 		`
+	// 	}
+	// }
 })
 
 onUnmounted(() => {

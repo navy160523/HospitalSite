@@ -16,7 +16,7 @@
 			<section class="left">
 				<h2>병원 등록</h2>
 				<HospitalForm @added="handleAdded" />
-				<div class="list">
+				<!--<div class="list">
 					<h3>등록된 병원 ({{ hospitals.length }}개)</h3>
 					<ul>
 						<li v-for="h in hospitals" :key="h.id">
@@ -26,6 +26,7 @@
 						</li>
 					</ul>
 				</div>
+				-->
 			</section>
 			<section class="right">
 				<HospitalMap 
@@ -56,7 +57,7 @@ async function handleAdded(h) {
 
 async function handleMapDeleteHospital(h) {
 	try {
-		await deleteHospital(h.id, h.YEAR)
+		await deleteHospital(h.id)
 		console.log('병원이 성공적으로 삭제되었습니다.')
 	} catch (err) {
 		console.error('병원 삭제 실패:', err)
